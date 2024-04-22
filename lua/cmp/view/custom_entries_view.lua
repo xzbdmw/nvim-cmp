@@ -58,7 +58,10 @@ custom_entries_view.new = function()
       if win ~= self.entries_win.win or buf ~= self.entries_win:get_buffer() then
         return
       end
-
+      local query = vim.treesitter.query.get(vim.bo.filetype, 'highlights')
+      if query == nil then
+        query = vim.treesitter.query.get('lua', 'highlights')
+      end
       local fields = config.get().formatting.fields
       for i = top, bot do
         local e = self.entries[i + 1]
@@ -66,17 +69,69 @@ custom_entries_view.new = function()
           local v = e:get_view(self.offset, buf)
           local o = config.get().window.completion.side_padding
           local a = 0
+
+          local completion_item = misc.copy(e:get_completion_item())
           for _, field in ipairs(fields) do
             if field == types.cmp.ItemField.Abbr then
               a = o
+              local success, parser = pcall(vim.treesitter.get_string_parser, v.concat.text, vim.bo.filetype)
+              if success then
+                local tree = parser:parse(true)[1]
+                local root = tree:root()
+                local offset = v.concat.offset or 0
+                local shift = 0
+                for id, node in query:iter_captures(root, v.concat.text, 0, -1) do
+                  local name = '@' .. query.captures[id]
+                  local priority = 200
+                  if name == '@keyword.import' then
+                    goto continue
+                  end
+                  if name == '@string' then
+                    priority = 1000
+                  end
+                  if name == '@comment' then
+                    shift = 2
+                  end
+                  local next = true
+                  if name ~= '@spell' and shift == 2 then
+                    next = false
+                  end
+                  if name == '@spell' and next then
+                    next = false
+                    goto continue
+                  end
+                  name = name .. '.' .. vim.bo.filetype
+                  local hl = vim.api.nvim_get_hl_id_by_name(name)
+                  -- local hl = query:get_hl_from_capture(node)
+                  local range = { node:range() }
+                  local _, nscol, _, necol = range[1], range[2], range[3], range[4]
+                  pcall(vim.api.nvim_buf_set_extmark, buf, custom_entries_view.ns, i, nscol + o - offset - shift, {
+                    end_col = necol + o - offset - shift,
+                    priority = priority,
+                    hl_group = hl,
+                    hl_eol = false,
+                    ephemeral = true,
+                  })
+                  ::continue::
+                end
+              else
+                vim.api.nvim_buf_set_extmark(buf, custom_entries_view.ns, i, o, {
+                  end_line = i,
+                  end_col = o + v[field].bytes,
+                  hl_group = v[field].hl_group,
+                  hl_mode = 'combine',
+                  ephemeral = true,
+                })
+              end
+            else
+              vim.api.nvim_buf_set_extmark(buf, custom_entries_view.ns, i, o, {
+                end_line = i,
+                end_col = o + v[field].bytes,
+                hl_group = v[field].hl_group,
+                hl_mode = 'combine',
+                ephemeral = true,
+              })
             end
-            vim.api.nvim_buf_set_extmark(buf, custom_entries_view.ns, i, o, {
-              end_line = i,
-              end_col = o + v[field].bytes,
-              hl_group = v[field].hl_group,
-              hl_mode = 'combine',
-              ephemeral = true,
-            })
             o = o + v[field].bytes + (self.column_width[field] - v[field].width) + 1
           end
 
