@@ -25,11 +25,11 @@ view.new = function()
   local self = setmetatable({}, { __index = view })
   self.resolve_dedup = async.dedup()
   self.is_docs_view_pinned = false
-  self.custom_entries_view = custom_entries_view.new()
+  self.ghost_text_view = ghost_text_view.new()
+  self.custom_entries_view = custom_entries_view.new(ghost_text_view)
   self.native_entries_view = native_entries_view.new()
   self.wildmenu_entries_view = wildmenu_entries_view.new()
   self.docs_view = docs_view.new()
-  self.ghost_text_view = ghost_text_view.new()
   self.event = event.new()
 
   return self
@@ -99,6 +99,10 @@ view.open = function(self, ctx, sources)
           for _, e in ipairs(s:get_entries(ctx)) do
             e.score = e.score + priority
             table.insert(group_entries, e)
+            -- local is_copilot = e:get_completion_item().copilot
+            -- if not is_copilot then
+            --   offset = math.min(offset, e:get_offset())
+            -- end
             offset = math.min(offset, e:get_offset())
           end
         end
@@ -271,7 +275,7 @@ view._get_entries_view = function(self)
   end)
   return v
 end
-
+G = 0
 ---On entry change
 view.on_entry_change = async.throttle(function(self)
   if not self:visible() then
@@ -295,13 +299,13 @@ view.on_entry_change = async.throttle(function(self)
   else
     self.docs_view:close()
   end
-
   e = e or self:get_first_entry()
   if e then
+    -- G = 1
     self.ghost_text_view:show(e)
   else
     self.ghost_text_view:hide()
   end
-end, 20)
+end, 1)
 
 return view

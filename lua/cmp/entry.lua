@@ -201,7 +201,7 @@ end
 ---Return view information.
 ---@param suggest_offset integer
 ---@param entries_buf integer The buffer this entry will be rendered into.
----@return { abbr: { text: string, bytes: integer, width: integer, hl_group: string }, kind: { text: string, bytes: integer, width: integer, hl_group: string }, menu: { text: string, bytes: integer, width: integer, hl_group: string } }
+---@return {concat:{text:string,offset:integer}, abbr: { text: string, bytes: integer, width: integer, hl_group: string }, kind: { text: string, bytes: integer, width: integer, hl_group: string }, menu: { text: string, bytes: integer, width: integer, hl_group: string } }
 entry.get_view = function(self, suggest_offset, entries_buf)
   local item = self:get_vim_item(suggest_offset)
   return self.cache:ensure('get_view:' .. tostring(entries_buf), function()
@@ -215,6 +215,10 @@ entry.get_view = function(self, suggest_offset, entries_buf)
       view.abbr.bytes = #view.abbr.text
       view.abbr.width = vim.fn.strdisplaywidth(view.abbr.text)
       view.abbr.hl_group = item.abbr_hl_group or (self:is_deprecated() and 'CmpItemAbbrDeprecated' or 'CmpItemAbbr')
+      view.abbr.offset = item.offset
+      view.concat = {}
+      view.concat.text = item.concat
+      view.concat.offset = item.offset
       view.kind = {}
       view.kind.text = item.kind or ''
       view.kind.bytes = #view.kind.text
@@ -251,25 +255,59 @@ entry.get_vim_item = function(self, suggest_offset)
       is_expandable = true
     end
     if expandable_indicator and is_expandable then
-      abbr = abbr .. '~'
+      -- abbr = abbr .. '~'
     end
-
     -- append delta text
     if suggest_offset < self:get_offset() then
       word = string.sub(self.context.cursor_before_line, suggest_offset, self:get_offset() - 1) .. word
     end
-
-    -- labelDetails.
-    local menu = nil
-    if completion_item.labelDetails then
-      menu = ''
-      if completion_item.labelDetails.detail then
-        menu = menu .. completion_item.labelDetails.detail
-      end
-      if completion_item.labelDetails.description then
-        menu = menu .. completion_item.labelDetails.description
-      end
+    function string:startswith(start)
+      return self:sub(1, #start) == start
     end
+    -- labelDetails.
+    -- function#function#if detail: {
+    --   description = "pub fn shl(self, rhs: Rhs) -> Self::Output",
+    --   detail = " (use std::ops::Shl)"
+    -- }
+    -- local menu = ''
+    -- local detail = completion_item.detail
+    -- if detail and vim.bo.filetype ~= 'lua' then
+    --   -- if vim.bo.filetype == 'go' then
+    --   --   if string.match(detail, '^func') then
+    --   --     local start_index, _ = string.find(detail, '%(')
+    --   --     if start_index then
+    --   --       detail = 'fn' .. detail:sub(start_index, #detail)
+    --   --     end
+    --   --   end
+    --   -- end
+    --   -- menu = ' ' .. detail
+    -- end
+    -- if completion_item.labelDetails then
+    --   local detail = completion_item.labelDetails.detail
+    --   local description = completion_item.labelDetails.description
+    --   if detail and description then
+    --     if detail:sub(1, 1) == ' ' then
+    --       detail = detail:sub(2)
+    --     end
+    --     if string.match(description, '^pub fn') or string.match(description, '^pub unsafe fn') or string.match(description, '^pub const fn') then
+    --       local start_index, _ = string.find(description, '%(')
+    --       if start_index then
+    --         description = 'fn' .. description:sub(start_index, #description)
+    --       end
+    --     end
+    --     menu = menu .. detail .. '#' .. description
+    --   elseif detail then
+    --     menu = menu .. detail
+    --   elseif description then
+    --     if string.match(description, '^pub fn') or string.match(description, '^pub unsafe fn') or string.match(description, '^pub const fn') then
+    --       local start_index, _ = string.find(description, '%(')
+    --       if start_index then
+    --         description = 'fn' .. description:sub(start_index, #description)
+    --       end
+    --     end
+    --     menu = menu .. '#' .. description
+    --   end
+    -- end
 
     -- remove duplicated string.
     if self:get_offset() ~= self.context.cursor.col then
@@ -295,7 +333,11 @@ entry.get_vim_item = function(self, suggest_offset)
       vim_item = config.get().formatting.format(self, vim_item)
     end
     vim_item.word = str.oneline(vim_item.word or '')
+    -- if vim.bo.filetype == 'go' then
+    --   vim_item.word = str.oneline(completion_item.filterText or '')
+    -- end
     vim_item.abbr = str.oneline(vim_item.abbr or '')
+    vim_item.concat = str.oneline(vim_item.concat or '')
     vim_item.kind = str.oneline(vim_item.kind or '')
     vim_item.menu = str.oneline(vim_item.menu or '')
     vim_item.equal = 1
@@ -315,11 +357,12 @@ end
 ---@return lsp.Range|nil
 entry.get_insert_range = function(self)
   local insert_range
-  if self:get_completion_item().textEdit then
-    if self:get_completion_item().textEdit.insert then
-      insert_range = self:get_completion_item().textEdit.insert
+  local completion_item = self:get_completion_item()
+  if completion_item.textEdit then
+    if completion_item.textEdit.insert then
+      insert_range = completion_item.textEdit.insert
     else
-      insert_range = self:get_completion_item().textEdit.range --[[@as lsp.Range]]
+      insert_range = completion_item.textEdit.range --[[@as lsp.Range]]
     end
     insert_range = self:convert_range_encoding(insert_range)
   else
@@ -381,7 +424,6 @@ entry.match = function(self, input, matching_config)
 
     local score, matches, filter_text, _
     local checked = {} ---@type table<string, boolean>
-
     filter_text = self:get_filter_text()
     checked[filter_text] = true
     score, matches = matcher.match(input, filter_text, option)
@@ -481,7 +523,6 @@ end
 entry.get_kind = function(self)
   return self:get_completion_item().kind or types.lsp.CompletionItemKind.Text
 end
-
 ---Execute completion item's command.
 ---@param callback fun()
 entry.execute = function(self, callback)

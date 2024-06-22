@@ -35,7 +35,6 @@ cmp.config.window = require('cmp.config.window')
 ---Sync asynchronous process.
 cmp.sync = function(callback)
   return function(...)
-    cmp.core.filter:sync(1000)
     if callback then
       return callback(...)
     end
@@ -83,10 +82,17 @@ cmp.complete_common_string = cmp.sync(function()
   return cmp.core:complete_common_string()
 end)
 
----Return view is visible or not.
-cmp.visible = cmp.sync(function()
-  return cmp.core.view:visible() or vim.fn.pumvisible() == 1
-end)
+-- -Return view is visible or not.
+-- cmp.visible = cmp.sync(function()
+--   return cmp.core.view:visible() or vim.fn.pumvisible() == 1
+-- end)
+
+local function fast_cmp_visible()
+  local res = cmp.core.view.custom_entries_view:visible()
+  return res
+end
+
+cmp.visible = fast_cmp_visible
 
 ---Get current selected entry or nil
 cmp.get_selected_entry = cmp.sync(function()
@@ -104,7 +110,7 @@ cmp.get_entries = cmp.sync(function()
 end)
 
 ---Close current completion
-cmp.close = cmp.sync(function()
+cmp.close = function()
   if cmp.core.view:visible() then
     local release = cmp.core:suspend()
     cmp.core.view:close()
@@ -113,7 +119,7 @@ cmp.close = cmp.sync(function()
   else
     return false
   end
-end)
+end
 
 ---Abort current completion
 cmp.abort = cmp.sync(function()
@@ -207,7 +213,7 @@ cmp.close_docs = cmp.sync(function()
 end)
 
 ---Confirm completion
-cmp.confirm = cmp.sync(function(option, callback)
+cmp.confirm = function(option, callback)
   option = option or {}
   option.select = option.select or false
   option.behavior = option.behavior or cmp.get_config().confirmation.default_behavior or cmp.ConfirmBehavior.Insert
@@ -219,12 +225,21 @@ cmp.confirm = cmp.sync(function(option, callback)
       e = cmp.core.view:get_first_entry()
     end
     if e then
-      cmp.core:confirm(e, {
-        behavior = option.behavior,
-      }, function()
-        callback()
-        cmp.core:complete(cmp.core:get_context({ reason = cmp.ContextReason.TriggerOnly }))
-      end)
+      if require('cmp.utils.api').is_cmdline_mode() or require('config.utils').if_multicursor() then
+        cmp.core:confirm(e, {
+          behavior = option.behavior,
+        }, function()
+          callback()
+          cmp.core:complete(cmp.core:get_context({ reason = cmp.ContextReason.TriggerOnly }))
+        end)
+      else
+        cmp.core:quick_confirm(e, {
+          behavior = option.behavior,
+        }, function()
+          callback()
+          cmp.core:complete(cmp.core:get_context({ reason = cmp.ContextReason.TriggerOnly }))
+        end)
+      end
       return true
     end
   elseif vim.fn.pumvisible() == 1 then
@@ -238,7 +253,7 @@ cmp.confirm = cmp.sync(function(option, callback)
     end
   end
   return false
-end)
+end
 
 ---Show status
 cmp.status = function()
@@ -321,6 +336,15 @@ cmp.setup = setmetatable({
 })
 
 -- In InsertEnter autocmd, vim will detects mode=normal unexpectedly.
+local on_insert_enter_cmdline = function()
+  if config.enabled() then
+    cmp.config.compare.scopes:update()
+    cmp.config.compare.locality:update()
+    cmp.core:prepare()
+    cmp.core:on_change('InsertEnter')
+  end
+end
+
 local on_insert_enter = function()
   if config.enabled() then
     cmp.config.compare.scopes:update()
@@ -329,8 +353,19 @@ local on_insert_enter = function()
     cmp.core:on_change('InsertEnter')
   end
 end
-autocmd.subscribe({ 'CmdlineEnter' }, async.debounce_next_tick(on_insert_enter))
-autocmd.subscribe({ 'InsertEnter' }, async.debounce_next_tick_by_keymap(on_insert_enter))
+
+autocmd.subscribe({ 'CmdlineEnter' }, async.debounce_next_tick(on_insert_enter_cmdline))
+autocmd.subscribe({ 'InsertEnter' }, function()
+  vim.defer_fn(function()
+    local filetype = vim.bo.filetype
+    local query = query_cache[filetype]
+    if query == nil then
+      query = vim.treesitter.query.get(filetype, 'highlights')
+      query_cache[filetype] = query
+    end
+    async.debounce_next_tick_by_keymap(on_insert_enter)()
+  end, 50)
+end)
 
 -- async.throttle is needed for performance. The mapping `:<C-u>...<CR>` will fire `CmdlineChanged` for each character.
 local on_text_changed = function()
@@ -338,15 +373,32 @@ local on_text_changed = function()
     cmp.core:on_change('TextChanged')
   end
 end
-autocmd.subscribe({ 'TextChangedI', 'TextChangedP' }, on_text_changed)
+autocmd.subscribe({ 'TextChangedP' }, on_text_changed)
 autocmd.subscribe('CmdlineChanged', async.debounce_next_tick(on_text_changed))
 
+autocmd.subscribe({ 'TextChangedI' }, function()
+  TXT = vim.uv.hrtime()
+  vim.schedule(function()
+    on_text_changed()
+  end)
+end)
 autocmd.subscribe('CursorMovedI', function()
-  if config.enabled() then
-    cmp.core:on_moved()
+  if vim.g.type_o then
+    vim.defer_fn(function()
+      if config.enabled() then
+        cmp.core:on_moved()
+      else
+        cmp.core:reset()
+        cmp.core.view:close()
+      end
+    end, 50)
   else
-    cmp.core:reset()
-    cmp.core.view:close()
+    if config.enabled() then
+      cmp.core:on_moved()
+    else
+      cmp.core:reset()
+      cmp.core.view:close()
+    end
   end
 end)
 

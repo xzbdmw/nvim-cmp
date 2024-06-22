@@ -76,12 +76,12 @@ compare.kind = function(entry1, entry2)
   kind1 = kind1 == types.lsp.CompletionItemKind.Text and 100 or kind1
   kind2 = kind2 == types.lsp.CompletionItemKind.Text and 100 or kind2
   if kind1 ~= kind2 then
-    if kind1 == types.lsp.CompletionItemKind.Snippet then
-      return true
-    end
-    if kind2 == types.lsp.CompletionItemKind.Snippet then
-      return false
-    end
+    -- if kind1 == types.lsp.CompletionItemKind.Snippet then
+    --   return true
+    -- end
+    -- if kind2 == types.lsp.CompletionItemKind.Snippet then
+    --   return false
+    -- end
     local diff = kind1 - kind2
     if diff < 0 then
       return true

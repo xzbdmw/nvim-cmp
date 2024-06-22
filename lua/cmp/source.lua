@@ -1,7 +1,7 @@
 local context = require('cmp.context')
 local config = require('cmp.config')
 local entry = require('cmp.entry')
-local debug = require('cmp.utils.debug')
+local cmpdbg = require('cmp.utils.debug')
 local misc = require('cmp.utils.misc')
 local cache = require('cmp.utils.cache')
 local types = require('cmp.types')
@@ -112,7 +112,6 @@ source.get_entries = function(self, ctx)
     if not inputs[o] then
       inputs[o] = string.sub(ctx.cursor_before_line, o)
     end
-
     local match = e:match(inputs[o], matching_config)
     e.score = match.score
     e.exact = false
@@ -316,7 +315,7 @@ source.complete = function(self, ctx, callback)
     self.is_triggered_by_symbol = char.is_symbol(string.byte(completion_context.triggerCharacter))
   end
 
-  debug.log(self:get_debug_name(), 'request', offset, vim.inspect(completion_context))
+  cmpdbg.log(self:get_debug_name(), 'request', offset, vim.inspect(completion_context))
   local prev_status = self.status
   self.status = source.SourceStatus.FETCHING
   self.offset = offset
@@ -339,7 +338,7 @@ source.complete = function(self, ctx, callback)
       self.incomplete = response.isIncomplete or false
 
       if #(response.items or response) > 0 then
-        debug.log(self:get_debug_name(), 'retrieve', #(response.items or response))
+        cmpdbg.log(self:get_debug_name(), 'retrieve', #(response.items or response))
         local old_offset = self.offset
         local old_entries = self.entries
 

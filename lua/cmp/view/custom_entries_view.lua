@@ -7,21 +7,23 @@ local types = require('cmp.types')
 local keymap = require('cmp.utils.keymap')
 local misc = require('cmp.utils.misc')
 local api = require('cmp.utils.api')
-
 local DEFAULT_HEIGHT = 10 -- @see https://github.com/vim/vim/blob/master/src/popupmenu.c#L45
 
 ---@class cmp.CustomEntriesView
 ---@field private entries_win cmp.Window
+---@field private ghost_text_view cmp.GhostTextView
 ---@field private offset integer
 ---@field private active boolean
 ---@field private entries cmp.Entry[]
 ---@field private column_width any
 ---@field public event cmp.Event
 local custom_entries_view = {}
-
 custom_entries_view.ns = vim.api.nvim_create_namespace('cmp.view.custom_entries_view')
 
-custom_entries_view.new = function()
+local cache = {}
+_G.query_cache = {}
+
+custom_entries_view.new = function(ghost_text_view)
   local self = setmetatable({}, { __index = custom_entries_view })
 
   self.entries_win = window.new()
@@ -43,7 +45,7 @@ custom_entries_view.new = function()
   self.active = false
   self.entries = {}
   self.bottom_up = false
-
+  self.ghost_text_view = ghost_text_view
   autocmd.subscribe(
     'CompleteChanged',
     vim.schedule_wrap(function()
@@ -52,34 +54,107 @@ custom_entries_view.new = function()
       end
     end)
   )
-
   vim.api.nvim_set_decoration_provider(custom_entries_view.ns, {
     on_win = function(_, win, buf, top, bot)
       if win ~= self.entries_win.win or buf ~= self.entries_win:get_buffer() then
         return
       end
 
+      local filetype = api.is_cmdline_mode() and 'vim' or vim.bo.filetype
+      local query = query_cache[filetype]
+      if query == nil then
+        query = vim.treesitter.query.get(filetype, 'highlights')
+        query_cache[filetype] = query
+      end
       local fields = config.get().formatting.fields
       for i = top, bot do
         local e = self.entries[i + 1]
         if e then
           local v = e:get_view(self.offset, buf)
+          if filetype == 'vim' then
+            v.concat.text = v.abbr.text
+          end
           local o = config.get().window.completion.side_padding
           local a = 0
           for _, field in ipairs(fields) do
             if field == types.cmp.ItemField.Abbr then
-              a = o
+              if cache[v.kind.text .. v.concat.text] then
+                for _, node in ipairs(cache[v.kind.text .. v.concat.text]) do
+                  pcall(vim.api.nvim_buf_set_extmark, buf, custom_entries_view.ns, i, node.start_col, {
+                    end_col = node.end_col,
+                    priority = node.priority,
+                    hl_group = node.hl,
+                    hl_eol = false,
+                    ephemeral = true,
+                  })
+                end
+                if #cache > 5000 then
+                  cache = {}
+                end
+              else
+                local success, parser = pcall(vim.treesitter.get_string_parser, v.concat.text, filetype)
+                if success then
+                  local tree = parser:parse(false)[1]
+                  local root = tree:root()
+                  local offset = v.concat.offset or 0
+                  local shift = 0
+                  cache[v.kind.text .. v.concat.text] = {}
+                  for id, node in query:iter_captures(root, v.concat.text, 0, -1) do
+                    local name = '@' .. query.captures[id]
+                    local priority = 200
+                    if name == '@keyword.import' then
+                      goto continue
+                    end
+                    if name == '@string' then
+                      priority = 1000
+                    end
+                    if name == '@comment' then
+                      shift = 2
+                    end
+                    local next = true
+                    if name ~= '@spell' and shift == 2 then
+                      next = false
+                    end
+                    if name == '@spell' and next then
+                      next = false
+                      goto continue
+                    end
+                    name = name .. '.' .. filetype
+                    local hl = vim.api.nvim_get_hl_id_by_name(name)
+                    local range = { node:range() }
+                    local _, nscol, _, necol = range[1], range[2], range[3], range[4]
+                    pcall(vim.api.nvim_buf_set_extmark, buf, custom_entries_view.ns, i, nscol + o - offset - shift, {
+                      end_col = necol + o - offset - shift,
+                      priority = priority,
+                      hl_group = hl,
+                      hl_eol = false,
+                      ephemeral = true,
+                    })
+                    table.insert(cache[v.kind.text .. v.concat.text], { name = name, start_col = nscol + o - offset - shift, end_col = necol + o - offset - shift, priority = priority, hl = hl })
+                    ::continue::
+                  end
+                else
+                  vim.api.nvim_buf_set_extmark(buf, custom_entries_view.ns, i, o, {
+                    end_line = i,
+                    end_col = o + v[field].bytes,
+                    hl_group = v[field].hl_group,
+                    hl_mode = 'combine',
+                    ephemeral = true,
+                  })
+                end
+              end
+            else
+              vim.api.nvim_buf_set_extmark(buf, custom_entries_view.ns, i, o, {
+                end_line = i,
+                end_col = o + v[field].bytes,
+                hl_group = v[field].hl_group,
+                hl_mode = 'combine',
+                ephemeral = true,
+              })
             end
-            vim.api.nvim_buf_set_extmark(buf, custom_entries_view.ns, i, o, {
-              end_line = i,
-              end_col = o + v[field].bytes,
-              hl_group = v[field].hl_group,
-              hl_mode = 'combine',
-              ephemeral = true,
-            })
+
             o = o + v[field].bytes + (self.column_width[field] - v[field].width) + 1
           end
-
           for _, m in ipairs(e.matches or {}) do
             vim.api.nvim_buf_set_extmark(buf, custom_entries_view.ns, i, a + m.word_match_start - 1, {
               end_line = i,
@@ -308,13 +383,23 @@ custom_entries_view.select_next_item = function(self, option)
     local cursor = vim.api.nvim_win_get_cursor(self.entries_win.win)[1]
     local is_top_down = self:is_direction_top_down()
     local last = #self.entries
-
+    -- if not is_top_down then
+    --   cursor = cursor - 1
+    --   if cursor == 0 then
+    --     cursor = last
+    --   end
+    -- else
+    --   cursor = cursor + 1
+    --   if cursor > last then
+    --     cursor = 1
+    --   end
+    -- end
     if not self.entries_win:option('cursorline') then
       cursor = (is_top_down and 1) or last
     else
       if is_top_down then
         if cursor == last then
-          cursor = 0
+          cursor = 1
         else
           cursor = cursor + option.count
           if last < cursor then
@@ -322,17 +407,16 @@ custom_entries_view.select_next_item = function(self, option)
           end
         end
       else
-        if cursor == 0 then
+        if cursor == 1 then
           cursor = last
         else
           cursor = cursor - option.count
-          if cursor < 0 then
-            cursor = 0
+          if cursor < 1 then
+            cursor = 1
           end
         end
       end
     end
-
     self:_select(cursor, {
       behavior = option.behavior or types.cmp.SelectBehavior.Insert,
       active = true,
@@ -345,13 +429,23 @@ custom_entries_view.select_prev_item = function(self, option)
     local cursor = vim.api.nvim_win_get_cursor(self.entries_win.win)[1]
     local is_top_down = self:is_direction_top_down()
     local last = #self.entries
-
+    -- if is_top_down then
+    --   cursor = cursor - 1
+    --   if cursor == 0 then
+    --     cursor = last
+    --   end
+    -- else
+    --   cursor = cursor + 1
+    --   if cursor > last then
+    --     cursor = 1
+    --   end
+    -- end
     if not self.entries_win:option('cursorline') then
       cursor = (is_top_down and last) or 1
     else
       if is_top_down then
         if cursor == 1 then
-          cursor = 0
+          cursor = last
         else
           cursor = cursor - option.count
           if cursor < 0 then
@@ -360,7 +454,7 @@ custom_entries_view.select_prev_item = function(self, option)
         end
       else
         if cursor == last then
-          cursor = 0
+          cursor = 1
         else
           cursor = cursor + option.count
           if last < cursor then
@@ -369,7 +463,6 @@ custom_entries_view.select_prev_item = function(self, option)
         end
       end
     end
-
     self:_select(cursor, {
       behavior = option.behavior or types.cmp.SelectBehavior.Insert,
       active = true,
@@ -421,6 +514,55 @@ custom_entries_view._select = function(self, cursor, option)
     math.max(math.min(cursor, #self.entries), 1),
     0,
   })
+
+  if not self.bottom_up then
+    local info = self.entries_win:info()
+    local border_info = info.border_info
+    local border_offset_row = border_info.top + border_info.bottom
+    local row = api.get_screen_cursor()[1]
+
+    -- If user specify 'noselect', select first entry
+    local entry = self:get_selected_entry() or self:get_first_entry()
+    local should_move_up = self.ghost_text_view:has_multi_line(entry) and row > self.entries_win:get_content_height() + border_offset_row
+
+    if should_move_up then
+      self.bottom_up = true
+
+      -- This logic keeps the same as open()
+      local height = vim.api.nvim_get_option_value('pumheight', {})
+      height = height ~= 0 and height or #self.entries
+      height = math.min(height, #self.entries)
+      height = math.min(height, row - 1)
+
+      row = row - height - border_offset_row - 1
+      if row < 0 then
+        height = height + row
+      end
+
+      local completion = config.get().window.completion
+      local new_position = {
+        style = 'minimal',
+        relative = 'editor',
+        row = math.max(0, row),
+        height = height,
+        col = info.col,
+        width = info.width,
+        border = completion.border,
+        zindex = completion.zindex or 1001,
+      }
+      self.entries_win:open(new_position)
+
+      if not self:is_direction_top_down() then
+        local n = #self.entries
+        for i = 1, math.floor(n / 2) do
+          self.entries[i], self.entries[n - i + 1] = self.entries[n - i + 1], self.entries[i]
+        end
+        self:_select(#self.entries - cursor + 1, option)
+      else
+        self:_select(cursor, option)
+      end
+    end
+  end
 
   if is_insert then
     self:_insert(self.entries[cursor] and self.entries[cursor]:get_vim_item(self.offset).word or self.prefix)

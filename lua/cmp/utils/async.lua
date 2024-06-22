@@ -37,12 +37,15 @@ async.throttle = function(fn, timeout)
     running = false,
     timeout = timeout,
     sync = function(self, timeout_)
+      -- __AUTO_GENERATED_PRINTF_START__
+      print([==[cmp is syncing]==]) -- __AUTO_GENERATED_PRINTF_END__
+      print(debug.traceback())
       if not self.running then
         return
       end
       vim.wait(timeout_ or 1000, function()
         return not self.running
-      end, 10)
+      end, 1)
     end,
     stop = function(reset_time)
       if reset_time ~= false then
@@ -101,28 +104,27 @@ async.step = function(...)
   table.remove(tasks, 1)(next)
 end
 
----Timeout callback function
----@param fn function
----@param timeout integer
----@return function
-async.timeout = function(fn, timeout)
-  local timer
-  local done = false
-  local callback = function(...)
-    if not done then
-      done = true
-      timer:stop()
-      timer:close()
-      fn(...)
-    end
-  end
-  timer = vim.loop.new_timer()
-  timer:start(timeout, 0, function()
-    callback()
-  end)
-  return callback
-end
-
+-- ---Timeout callback function
+-- ---@param fn function
+-- ---@param timeout integer
+-- ---@return function
+-- async.timeout = function(fn, timeout)
+--   local timer
+--   local done = false
+--   local callback = function(...)
+--     if not done then
+--       done = true
+--       timer:stop()
+--       timer:close()
+--       fn(...)
+--     end
+--   end
+--   timer = vim.loop.new_timer()
+--   timer:start(timeout, 0, function()
+--     callback()
+--   end)
+--   return callback
+-- end
 ---@alias cmp.AsyncDedup fun(callback: function): function
 
 ---Create deduplicated callback
@@ -149,7 +151,7 @@ async.sync = function(runner, timeout)
   end)
   vim.wait(timeout, function()
     return done
-  end, 10, false)
+  end, 1, false)
 end
 
 ---Wait and callback for next safe state.
@@ -175,7 +177,7 @@ async.debounce_next_tick_by_keymap = function(callback)
 end
 
 local Scheduler = {}
-Scheduler._queue = {}
+Scheduler._queue = {} ---@type Async[]
 Scheduler._executor = assert(vim.loop.new_check())
 
 function Scheduler.step()
@@ -267,7 +269,7 @@ end
 
 function Async:sync()
   while self.running do
-    vim.wait(10)
+    vim.wait(1)
   end
   return self.error and error(self.error) or self.result
 end

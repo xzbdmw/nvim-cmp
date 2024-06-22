@@ -277,6 +277,7 @@ core.complete = function(self, ctx)
   end
 
   self:set_context(ctx)
+
   -- Invoke completion sources.
   local sources = self:get_sources()
   for _, s in ipairs(sources) do
@@ -305,7 +306,6 @@ core.complete = function(self, ctx)
 end
 
 ---Update completion menu
----@param self cmp.Core
 local async_filter = async.wrap(function(self)
   self.filter.timeout = config.get().performance.throttle
 
@@ -366,7 +366,6 @@ core.confirm = function(self, e, option, callback)
 
   -- Close menus.
   self.view:close()
-
   feedkeys.call(keymap.indentkeys(), 'n')
   feedkeys.call('', 'n', function()
     -- Emulate `<C-y>` behavior to save `.` register.
@@ -446,7 +445,6 @@ core.confirm = function(self, e, option, callback)
     else
       completion_item.textEdit.range = e:get_insert_range()
     end
-
     local diff_before = math.max(0, e.context.cursor.col - (completion_item.textEdit.range.start.character + 1))
     local diff_after = math.max(0, (completion_item.textEdit.range['end'].character + 1) - e.context.cursor.col)
     local new_text = completion_item.textEdit.newText
@@ -471,22 +469,26 @@ core.confirm = function(self, e, option, callback)
           cursor_col0 = ctx.cursor.col - 1,
         })
       end
-      local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet
+      local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet and string.find(new_text, '$', nil, true)
       if is_snippet then
         completion_item.textEdit.newText = ''
       end
       vim.lsp.util.apply_text_edits({ completion_item.textEdit }, ctx.bufnr, 'utf-8')
-
       local texts = vim.split(completion_item.textEdit.newText, '\n')
       vim.api.nvim_win_set_cursor(0, {
         completion_item.textEdit.range.start.line + #texts,
         (#texts == 1 and (completion_item.textEdit.range.start.character + #texts[1]) or #texts[#texts]),
       })
+      if not is_snippet then
+        vim.api.nvim__redraw({ valid = true, cursor = true })
+      end
       if is_snippet then
         config.get().snippet.expand({
           body = new_text,
           insert_text_mode = completion_item.insertTextMode,
         })
+        -- vim.api.nvim__redraw({ valid = true, cursor = true })
+        -- vim.api.nvim__redraw({ buf = vim.api.nvim_get_current_buf(), flush = true, valid = true, range = { completion_item.textEdit.range.start.line, completion_item.textEdit.range['end'].line + 1 } })
       end
     else
       local keys = {}
@@ -497,6 +499,7 @@ core.confirm = function(self, e, option, callback)
     end
   end)
   feedkeys.call(keymap.indentkeys(vim.bo.indentkeys), 'n')
+  feedkeys.call('', 'n', function() end)
   feedkeys.call('', 'n', function()
     e:execute(vim.schedule_wrap(function()
       release()
@@ -591,8 +594,7 @@ core.quick_confirm = function(self, e, option, callback)
   completion_item.textEdit.range['end'].line = ctx.cursor.line
   completion_item.textEdit.range['end'].character = (ctx.cursor.col - 1) + diff_after
   if api.is_insert_mode() then
-    -- local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet and string.find(new_text, '$', nil, true) ~= nil
-    local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet
+    local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet and string.find(new_text, '$', nil, true) ~= nil
     if is_snippet then
       completion_item.textEdit.newText = ''
     end
@@ -604,7 +606,8 @@ core.quick_confirm = function(self, e, option, callback)
     })
     -- Time(ST, 'no snippet')
     if not is_snippet then
-      vim.api.nvim__redraw({ valid = true, cursor = true })
+      -- vim.api.nvim__redraw({ valid = true, cursor = true })
+      -- Time(ST)
     end
     if is_snippet then
       -- local start = vim.uv.hrtime()

@@ -42,6 +42,9 @@ end
 ---Emit autocmd
 ---@param event string
 autocmd.emit = function(event)
+  if event == 'InsertLeave' and vim.g.gd then
+    return
+  end
   debug.log(' ')
   debug.log(string.format('>>> %s', event))
   autocmd.events[event] = autocmd.events[event] or {}

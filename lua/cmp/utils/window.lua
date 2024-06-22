@@ -119,10 +119,37 @@ window.open = function(self, style)
 
   if self.win and vim.api.nvim_win_is_valid(self.win) then
     vim.api.nvim_win_set_config(self.win, self.style)
+
+    -- local ns = vim.api.nvim_create_namespace('nvimcmp-bottom')
+    -- vim.api.nvim_buf_clear_namespace(self:get_buffer(), ns, 0, -1)
+    -- local row = self.style.height
+    -- vim.schedule(function()
+    --   pcall(function()
+    --     vim.api.nvim_buf_set_extmark(self:get_buffer(), ns, row - 1, 0, {
+    --       end_line = row,
+    --       hl_group = 'TreesitterContextBottom',
+    --       hl_eol = true,
+    --     })
+    --   end)
+    -- end)
   else
     local s = misc.copy(self.style)
     s.noautocmd = true
     self.win = vim.api.nvim_open_win(self:get_buffer(), false, s)
+
+    -- local ns = vim.api.nvim_create_namespace('nvimcmp-bottom')
+    -- vim.api.nvim_buf_clear_namespace(self:get_buffer(), ns, 0, -1)
+    -- local row = s.height
+    -- vim.schedule(function()
+    --   pcall(function()
+    --     vim.api.nvim_buf_set_extmark(self:get_buffer(), ns, row - 1, 0, {
+    --       end_line = row,
+    --       hl_group = 'TreesitterContextBottom',
+    --       hl_eol = true,
+    --     })
+    --   end)
+    -- end)
+
     for k, v in pairs(self.opt) do
       opt.win_set_option(self.win, k, v)
     end
@@ -135,7 +162,6 @@ window.update = function(self)
   local info = self:info()
   if info.scrollable and self.style.height > 0 then
     -- Draw the background of the scrollbar
-
     if not info.border_info.visible then
       local style = {
         relative = 'editor',
@@ -144,21 +170,20 @@ window.update = function(self)
         height = self.style.height,
         row = info.row,
         col = info.col + info.width - info.scrollbar_offset, -- info.col was already contained the scrollbar offset.
-        zindex = (self.style.zindex and (self.style.zindex + 1) or 1),
+        zindex = 1002,
       }
       if self.sbar_win and vim.api.nvim_win_is_valid(self.sbar_win) then
         vim.api.nvim_win_set_config(self.sbar_win, style)
       else
         style.noautocmd = true
         self.sbar_win = vim.api.nvim_open_win(buffer.ensure(self.name .. 'sbar_buf'), false, style)
-        opt.win_set_option(self.sbar_win, 'winhighlight', 'EndOfBuffer:PmenuSbar,NormalFloat:PmenuSbar')
+        opt.win_set_option(self.sbar_win, 'winhighlight', 'EndOfBuffer:PmenuSbar,NormalFloat:NormalFloat')
       end
     end
 
     -- Draw the scrollbar thumb
     local thumb_height = math.floor(info.inner_height * (info.inner_height / self:get_content_height()) + 0.5)
     local thumb_offset = math.floor(info.inner_height * (vim.fn.getwininfo(self.win)[1].topline / self:get_content_height()))
-
     local style = {
       relative = 'editor',
       style = 'minimal',
@@ -166,7 +191,7 @@ window.update = function(self)
       height = math.max(1, thumb_height),
       row = info.row + thumb_offset + (info.border_info.visible and info.border_info.top or 0),
       col = info.col + info.width - 1, -- info.col was already added scrollbar offset.
-      zindex = (self.style.zindex and (self.style.zindex + 2) or 2),
+      zindex = 1003,
     }
     if self.thumb_win and vim.api.nvim_win_is_valid(self.thumb_win) then
       vim.api.nvim_win_set_config(self.thumb_win, style)
