@@ -78,6 +78,7 @@ custom_entries_view.new = function(ghost_text_view)
           local a = 0
           for _, field in ipairs(fields) do
             if field == types.cmp.ItemField.Abbr then
+              a = o
               if cache[v.kind.text .. v.concat.text] then
                 for _, node in ipairs(cache[v.kind.text .. v.concat.text]) do
                   pcall(vim.api.nvim_buf_set_extmark, buf, custom_entries_view.ns, i, node.start_col, {
