@@ -133,6 +133,26 @@ cmp.abort = cmp.sync(function()
   end
 end)
 
+cmp.select_cur_item = cmp.sync(function(option)
+  option = option or {}
+  option.behavior = option.behavior or cmp.SelectBehavior.Insert
+  option.count = option.count or 1
+
+  if cmp.core.view:visible() then
+    local release = cmp.core:suspend()
+    cmp.core.view:select_cur_item(option)
+    vim.schedule(release)
+    return true
+  elseif vim.fn.pumvisible() == 1 then
+    if option.behavior == cmp.SelectBehavior.Insert then
+      feedkeys.call(keymap.t(string.rep('<C-n>', option.count)), 'in')
+    else
+      feedkeys.call(keymap.t(string.rep('<Down>', option.count)), 'in')
+    end
+    return true
+  end
+  return false
+end)
 ---Select next item if possible
 cmp.select_next_item = cmp.sync(function(option)
   option = option or {}
