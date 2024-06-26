@@ -78,9 +78,7 @@ keymap.backspace = function(count)
   if count <= 0 then
     return ''
   end
-  local ns = vim.api.nvim_create_namespace('multicursors')
-  local extmark = vim.api.nvim_buf_get_extmarks(0, ns, { 0, 0 }, { -1, -1 }, {})
-  if extmark ~= nil and #extmark ~= 0 then
+  if require('config.utils').if_multicursor() then
     local insert_mode = require('multicursors.insert_mode')
     for _ = 1, count do
       insert_mode.delete_char_except_main()

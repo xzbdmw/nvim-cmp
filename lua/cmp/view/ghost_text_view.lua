@@ -165,6 +165,9 @@ end
 ---Show ghost text
 ---@param e cmp.Entry
 ghost_text_view.show = function(self, e)
+  if require('config.utils').if_multicursor() then
+    return false
+  end
   if not api.is_insert_mode() then
     return
   end
@@ -192,6 +195,7 @@ ghost_text_view.has_multi_line = function(self, e)
   if not api.is_insert_mode() then
     return false
   end
+
   local c = config.get().experimental.ghost_text
   if not c then
     return false
