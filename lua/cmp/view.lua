@@ -103,7 +103,7 @@ view.open = function(self, ctx, sources)
             -- if not is_copilot then
             --   offset = math.min(offset, e:get_offset())
             -- end
-            offset = math.min(offset, e:get_offset())
+            offset = math.min(offset, e.offset)
           end
         end
       end
