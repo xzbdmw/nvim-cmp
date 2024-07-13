@@ -591,8 +591,8 @@ core.quick_confirm = function(self, e, option, callback)
   completion_item.textEdit.range['end'].line = ctx.cursor.line
   completion_item.textEdit.range['end'].character = (ctx.cursor.col - 1) + diff_after
   if api.is_insert_mode() then
-    -- local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet and string.find(new_text, '$', nil, true) ~= nil
-    local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet
+    local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet and string.find(new_text, '$', nil, true) ~= nil
+    -- local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet
     if is_snippet then
       completion_item.textEdit.newText = ''
     end
@@ -602,9 +602,9 @@ core.quick_confirm = function(self, e, option, callback)
       completion_item.textEdit.range.start.line + #texts,
       (#texts == 1 and (completion_item.textEdit.range.start.character + #texts[1]) or #texts[#texts]),
     })
-    -- Time(ST, 'no snippet')
     if not is_snippet then
-      vim.api.nvim__redraw({ valid = true, cursor = true })
+      -- Time(ST, 'no snippet')
+      -- vim.api.nvim__redraw({ valid = true, cursor = true })
     end
     if is_snippet then
       -- local start = vim.uv.hrtime()
@@ -616,7 +616,7 @@ core.quick_confirm = function(self, e, option, callback)
       -- vim.o.lazyredraw = false
       -- Time(ST)
       -- Time(ST, 'snip')
-      -- vim.api.nvim__redraw({ valid = true, cursor = true })
+      -- vim.api.nvim__redraw({ flush = true, valid = true, cursor = true })
       -- vim.api.nvim__redraw({ buf = vim.api.nvim_get_current_buf(), flush = true, valid = true, range = { completion_item.textEdit.range.start.line, completion_item.textEdit.range['end'].line + 1 } })
     end
   else
