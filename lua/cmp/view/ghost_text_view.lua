@@ -82,7 +82,7 @@ end
 ghost_text_view.text_gen = function(self, line, cursor_col, entry)
   entry = entry or self.entry
   if entry == nil then
-    return { '' }
+    return { { { '' } } }
   end
 
   local function tab_width()
@@ -121,7 +121,7 @@ ghost_text_view.text_gen = function(self, line, cursor_col, entry)
     snip = true
     luasnip = require('luasnip').get_id_snippet(completion_item.data.snip_id)
     if luasnip == nil then
-      return { '' }
+      return { { { '' } } }
     end
     luasnip = luasnip:copy()
     local pos = vim.api.nvim_win_get_cursor(0)
