@@ -29,10 +29,12 @@ end
 ---exact: Entries with exact == true will be ranked higher.
 ---@type cmp.ComparatorFunction
 compare.exact = function(entry1, entry2)
-  local word1 = entry1:get_word()
-  local word2 = entry2:get_word()
-  if word1 == 'ne' or word2 ~= 'ne' then
-    return nil
+  if vim.bo.filetype == 'rust' then
+    local word1 = entry1:get_word()
+    local word2 = entry2:get_word()
+    if word1 == 'ne' or word2 ~= 'ne' then
+      return nil
+    end
   end
   if entry1.exact ~= entry2.exact then
     return entry1.exact
