@@ -319,7 +319,7 @@ entry._get_vim_item = function(self, suggest_offset)
     is_expandable = true
   end
   if expandable_indicator and is_expandable then
-    abbr = abbr .. '~'
+    -- abbr = abbr .. '~'
   end
 
   -- append delta text
