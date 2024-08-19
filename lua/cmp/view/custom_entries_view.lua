@@ -219,6 +219,7 @@ custom_entries_view.open = function(self, offset, entries)
       end
     end
   end
+  self.column_width.abbr = self.column_width.abbr - 1
   if vim.bo[entries_buf].modifiable == false then
     vim.bo[entries_buf].modifiable = true
     vim.api.nvim_buf_set_lines(entries_buf, 0, -1, false, lines)
