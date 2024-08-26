@@ -25,7 +25,7 @@ end
 ---Open documentation window
 ---@param e cmp.Entry
 ---@param view cmp.WindowStyle
-docs_view.open = function(self, e, view)
+docs_view.open = function(self, e, view, entry_view)
   local documentation = config.get().window.documentation
   if not documentation then
     return
@@ -61,7 +61,13 @@ docs_view.open = function(self, e, view)
     if documentation.max_height > 0 then
       opts.max_height = documentation.max_height
     end
-    vim.lsp.util.stylize_markdown(self.window:get_buffer(), documents, opts)
+    local kind = entry_view:get_selected_entry().completion_item.kind
+    if kind == 23 then
+      vim.api.nvim_buf_set_lines(self.window:get_buffer(), 0, -1, false, documents)
+      vim.treesitter.start(self.window:get_buffer(), 'markdown')
+    else
+      vim.lsp.util.stylize_markdown(self.window:get_buffer(), documents, opts)
+    end
   end
 
   -- Set buffer as not modified, so it can be removed without errors
