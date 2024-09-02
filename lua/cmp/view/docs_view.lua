@@ -116,7 +116,7 @@ docs_view.open = function(self, e, view, entry_view)
     row = view.row,
     col = col,
     border = documentation.border,
-    zindex = documentation.zindex or 50,
+    zindex = 1005,
   }
   self.window:open(style)
 
