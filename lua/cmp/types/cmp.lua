@@ -148,6 +148,7 @@ cmp.ItemField = {
 ---@class cmp.SortingConfig
 ---@field public priority_weight integer
 ---@field public comparators cmp.Comparator[]
+---@field public enabled nil|boolean|function(ctx: cmp.Source.context): boolean
 
 ---@class cmp.FormattingConfig
 ---@field public fields cmp.ItemField[]

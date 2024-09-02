@@ -92,6 +92,9 @@ source.get_entries = function(self, ctx)
   if self.offset == -1 then
     return {}
   end
+  if not self:enabled() then
+    return {}
+  end
 
   local target_entries = self.entries
 
@@ -264,6 +267,19 @@ source.get_position_encoding_kind = function(self)
     return self.source:get_position_encoding_kind()
   end
   return types.lsp.PositionEncodingKind.UTF16
+end
+
+---Return whether this source is enabled
+---@return boolean
+source.enabled = function(self)
+  local _e = self:get_source_config().enabled
+  if type(_e) == 'boolean' then
+    return _e
+  elseif type(_e) == 'function' then
+    return _e(self.context)
+  else
+    return true
+  end
 end
 
 ---Invoke completion
