@@ -245,7 +245,8 @@ cmp.confirm = function(option, callback)
       e = cmp.core.view:get_first_entry()
     end
     if e then
-      if require('cmp.utils.api').is_cmdline_mode() or require('config.utils').if_multicursor() then
+      if require('cmp.utils.api').is_cmdline_mode() or require('config.utils').if_multicursor() or vim.g.cy then
+        vim.g.cy = false
         cmp.core:confirm(e, {
           behavior = option.behavior,
         }, function()
