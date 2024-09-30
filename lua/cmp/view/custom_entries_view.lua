@@ -396,17 +396,6 @@ custom_entries_view.select_next_item = function(self, option)
     local cursor = vim.api.nvim_win_get_cursor(self.entries_win.win)[1]
     local is_top_down = self:is_direction_top_down()
     local last = #self.entries
-    -- if not is_top_down then
-    --   cursor = cursor - 1
-    --   if cursor == 0 then
-    --     cursor = last
-    --   end
-    -- else
-    --   cursor = cursor + 1
-    --   if cursor > last then
-    --     cursor = 1
-    --   end
-    -- end
     if not self.entries_win:option('cursorline') then
       cursor = (is_top_down and 1) or last
     else
@@ -442,17 +431,6 @@ custom_entries_view.select_prev_item = function(self, option)
     local cursor = vim.api.nvim_win_get_cursor(self.entries_win.win)[1]
     local is_top_down = self:is_direction_top_down()
     local last = #self.entries
-    -- if is_top_down then
-    --   cursor = cursor - 1
-    --   if cursor == 0 then
-    --     cursor = last
-    --   end
-    -- else
-    --   cursor = cursor + 1
-    --   if cursor > last then
-    --     cursor = 1
-    --   end
-    -- end
     if not self.entries_win:option('cursorline') then
       cursor = (is_top_down and last) or 1
     else
