@@ -511,20 +511,18 @@ custom_entries_view._select = function(self, cursor, option)
     local border_info = info.border_info
     local border_offset_row = border_info.top + border_info.bottom
     local row = api.get_screen_cursor()[1]
+    -- This logic keeps the same as open()
+    local height = vim.api.nvim_get_option_value('pumheight', {})
+    height = height ~= 0 and height or #self.entries
+    height = math.min(height, #self.entries)
 
     -- If user specify 'noselect', select first entry
     local entry = self:get_selected_entry() or self:get_first_entry()
-    local should_move_up = self.ghost_text_view:has_multi_line(entry) and row > self.entries_win:get_content_height() + border_offset_row
+    local should_move_up = self.ghost_text_view:has_multi_line(entry) and row > height + border_offset_row
 
     if should_move_up then
       self.bottom_up = true
-
-      -- This logic keeps the same as open()
-      local height = vim.api.nvim_get_option_value('pumheight', {})
-      height = height ~= 0 and height or #self.entries
-      height = math.min(height, #self.entries)
       height = math.min(height, row - 1)
-
       row = row - height - border_offset_row - 1
       if row < 0 then
         height = height + row
