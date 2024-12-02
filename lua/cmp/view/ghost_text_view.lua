@@ -175,6 +175,9 @@ ghost_text_view.show = function(self, e)
   if not api.is_insert_mode() then
     return
   end
+  if vim.b.rename then
+    return
+  end
   local c = config.get().experimental.ghost_text
   if not c then
     return

@@ -107,6 +107,10 @@ config.get = function()
       return c
     end)
   else
+    local cmdline_config
+    if vim.b.cmdwin then
+      cmdline_config = config.cmdline[':'] or { revision = 1, sources = {} }
+    end
     local bufnr = vim.api.nvim_get_current_buf()
     local filetype = vim.api.nvim_buf_get_option(bufnr, 'filetype')
     local buffer_config = config.buffers[bufnr] or { revision = 1 }
@@ -121,6 +125,9 @@ config.get = function()
       buffer_config.revision or 0,
     }, function()
       local c = {}
+      if vim.b.cmdwin then
+        c = misc.merge(c, config.normalize(cmdline_config))
+      end
       c = misc.merge(config.normalize(c), config.normalize(buffer_config))
       c = misc.merge(config.normalize(c), config.normalize(filetype_config))
       c = misc.merge(config.normalize(c), config.normalize(global_config))
