@@ -522,112 +522,114 @@ core.quick_confirm = function(self, e, option, callback)
   end
   e.confirmed = true
   local release = self:suspend()
-  local ctx = context.new()
-  if api.is_cmdline_mode() then
-    vim.defer_fn(function()
-      release()
-    end, 100)
-  else
-    vim.cmd([[silent! undojoin]])
-    -- This logic must be used nvim_buf_set_text.
-    -- If not used, the snippet engine's placeholder wil be broken.
-    vim.api.nvim_buf_set_text(0, e.context.cursor.row - 1, e:get_offset() - 1, ctx.cursor.row - 1, ctx.cursor.col - 1, {
-      e.context.cursor_before_line:sub(e:get_offset()),
-    })
-    vim.api.nvim_win_set_cursor(0, { e.context.cursor.row, e.context.cursor.col - 1 })
-    release()
-  end
-  -- Apply additionalTextEdits.
-  local ctx = context.new()
-  if #(e:get_completion_item().additionalTextEdits or {}) == 0 then
-    e:resolve(function()
-      local new = context.new()
-      local text_edits = e:get_completion_item().additionalTextEdits or {}
-      if #text_edits == 0 then
-        return
-      end
-
-      local has_cursor_line_text_edit = (function()
-        local minrow = math.min(ctx.cursor.row, new.cursor.row)
-        local maxrow = math.max(ctx.cursor.row, new.cursor.row)
-        for _, te in ipairs(text_edits) do
-          local srow = te.range.start.line + 1
-          local erow = te.range['end'].line + 1
-          if srow <= minrow and maxrow <= erow then
-            return true
-          end
-        end
-        return false
-      end)()
-      if has_cursor_line_text_edit then
-        return
-      end
-      vim.cmd([[silent! undojoin]])
-      vim.lsp.util.apply_text_edits(text_edits, ctx.bufnr, e.source:get_position_encoding_kind())
-    end)
-  else
-    vim.cmd([[silent! undojoin]])
-    vim.lsp.util.apply_text_edits(e:get_completion_item().additionalTextEdits, ctx.bufnr, e.source:get_position_encoding_kind())
-  end
-  local ctx = context.new()
-  local completion_item = misc.copy(e:get_completion_item())
-  if not completion_item.textEdit then
-    completion_item.textEdit = {}
-    local insertText = completion_item.insertText
-    if misc.empty(insertText) then
-      insertText = nil
-    end
-    completion_item.textEdit.newText = insertText or completion_item.word or completion_item.label
-  end
-  local behavior = option.behavior or config.get().confirmation.default_behavior
-  if behavior == types.cmp.ConfirmBehavior.Replace then
-    completion_item.textEdit.range = e:get_replace_range()
-  else
-    completion_item.textEdit.range = e:get_insert_range()
-  end
-  local diff_before = math.max(0, e.context.cursor.col - (completion_item.textEdit.range.start.character + 1))
-  local diff_after = math.max(0, (completion_item.textEdit.range['end'].character + 1) - e.context.cursor.col)
-  local new_text = completion_item.textEdit.newText
-  completion_item.textEdit.range.start.line = ctx.cursor.line
-  completion_item.textEdit.range.start.character = (ctx.cursor.col - 1) - diff_before
-  completion_item.textEdit.range['end'].line = ctx.cursor.line
-  completion_item.textEdit.range['end'].character = (ctx.cursor.col - 1) + diff_after
-  if api.is_insert_mode() then
-    local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet and string.find(new_text, '$', nil, true) ~= nil
-    -- local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet
-    if is_snippet then
-      completion_item.textEdit.newText = ''
-    end
-    vim.lsp.util.apply_text_edits({ completion_item.textEdit }, ctx.bufnr, 'utf-8')
-    local texts = vim.split(completion_item.textEdit.newText, '\n')
-    vim.api.nvim_win_set_cursor(0, {
-      completion_item.textEdit.range.start.line + #texts,
-      (#texts == 1 and (completion_item.textEdit.range.start.character + #texts[1]) or #texts[#texts]),
-    })
-    if not is_snippet then
-      -- Time(ST, 'no snippet')
-      -- vim.api.nvim__redraw({ valid = true, cursor = true })
-    end
-    if is_snippet then
-      -- local start = vim.uv.hrtime()
-      -- vim.o.lazyredraw = true
-      config.get().snippet.expand({
-        body = new_text,
-        insert_text_mode = completion_item.insertTextMode,
-      })
-      -- vim.o.lazyredraw = false
-      -- Time(ST)
-      -- Time(ST, 'snip')
-      -- vim.api.nvim__redraw({ flush = true, valid = true, cursor = true })
-      -- vim.api.nvim__redraw({ buf = vim.api.nvim_get_current_buf(), flush = true, valid = true, range = { completion_item.textEdit.range.start.line, completion_item.textEdit.range['end'].line + 1 } })
-    end
-  else
+  feedkeys.call('', 'n', function()
+    -- Emulate `<C-y>` behavior to save `.` register.
+    local ctx = context.new()
     local keys = {}
-    table.insert(keys, keymap.backspace(ctx.cursor_line:sub(completion_item.textEdit.range.start.character + 1, ctx.cursor.col - 1)))
-    table.insert(keys, keymap.delete(ctx.cursor_line:sub(ctx.cursor.col, completion_item.textEdit.range['end'].character)))
-    table.insert(keys, new_text)
+    table.insert(keys, keymap.backspace(ctx.cursor_before_line:sub(e.offset)))
+    table.insert(keys, e.word)
+    table.insert(keys, keymap.undobreak())
     feedkeys.call(table.concat(keys, ''), 'in')
-  end
+  end)
+  feedkeys.call('', 'n', function()
+    local ctx = context.new()
+    if api.is_cmdline_mode() then
+      vim.defer_fn(function()
+        release()
+      end, 100)
+    else
+      vim.cmd([[silent! undojoin]])
+      -- This logic must be used nvim_buf_set_text.
+      -- If not used, the snippet engine's placeholder wil be broken.
+      vim.api.nvim_buf_set_text(0, e.context.cursor.row - 1, e:get_offset() - 1, ctx.cursor.row - 1, ctx.cursor.col - 1, {
+        e.context.cursor_before_line:sub(e:get_offset()),
+      })
+      vim.api.nvim_win_set_cursor(0, { e.context.cursor.row, e.context.cursor.col - 1 })
+      release()
+    end
+  end)
+  feedkeys.call('', 'n', function()
+    -- Apply additionalTextEdits.
+    local ctx = context.new()
+    if #(e:get_completion_item().additionalTextEdits or {}) == 0 then
+      e:resolve(function()
+        local new = context.new()
+        local text_edits = e:get_completion_item().additionalTextEdits or {}
+        if #text_edits == 0 then
+          return
+        end
+
+        local has_cursor_line_text_edit = (function()
+          local minrow = math.min(ctx.cursor.row, new.cursor.row)
+          local maxrow = math.max(ctx.cursor.row, new.cursor.row)
+          for _, te in ipairs(text_edits) do
+            local srow = te.range.start.line + 1
+            local erow = te.range['end'].line + 1
+            if srow <= minrow and maxrow <= erow then
+              return true
+            end
+          end
+          return false
+        end)()
+        if has_cursor_line_text_edit then
+          return
+        end
+        vim.cmd([[silent! undojoin]])
+        vim.lsp.util.apply_text_edits(text_edits, ctx.bufnr, e.source:get_position_encoding_kind())
+      end)
+    else
+      vim.cmd([[silent! undojoin]])
+      vim.lsp.util.apply_text_edits(e:get_completion_item().additionalTextEdits, ctx.bufnr, e.source:get_position_encoding_kind())
+    end
+    local ctx = context.new()
+    local completion_item = misc.copy(e:get_completion_item())
+    if not completion_item.textEdit then
+      completion_item.textEdit = {}
+      local insertText = completion_item.insertText
+      if misc.empty(insertText) then
+        insertText = nil
+      end
+      completion_item.textEdit.newText = insertText or completion_item.word or completion_item.label
+    end
+    local behavior = option.behavior or config.get().confirmation.default_behavior
+    if behavior == types.cmp.ConfirmBehavior.Replace then
+      completion_item.textEdit.range = e:get_replace_range()
+    else
+      completion_item.textEdit.range = e:get_insert_range()
+    end
+    local diff_before = math.max(0, e.context.cursor.col - (completion_item.textEdit.range.start.character + 1))
+    local diff_after = math.max(0, (completion_item.textEdit.range['end'].character + 1) - e.context.cursor.col)
+    local new_text = completion_item.textEdit.newText
+    completion_item.textEdit.range.start.line = ctx.cursor.line
+    completion_item.textEdit.range.start.character = (ctx.cursor.col - 1) - diff_before
+    completion_item.textEdit.range['end'].line = ctx.cursor.line
+    completion_item.textEdit.range['end'].character = (ctx.cursor.col - 1) + diff_after
+    if api.is_insert_mode() then
+      local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet and string.find(new_text, '$', nil, true) ~= nil
+      -- local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet
+      if is_snippet then
+        completion_item.textEdit.newText = ''
+      end
+      vim.lsp.util.apply_text_edits({ completion_item.textEdit }, ctx.bufnr, 'utf-8')
+      local texts = vim.split(completion_item.textEdit.newText, '\n')
+      vim.api.nvim_win_set_cursor(0, {
+        completion_item.textEdit.range.start.line + #texts,
+        (#texts == 1 and (completion_item.textEdit.range.start.character + #texts[1]) or #texts[#texts]),
+      })
+      if is_snippet then
+        config.get().snippet.expand({
+          body = new_text,
+          insert_text_mode = completion_item.insertTextMode,
+        })
+      end
+    else
+      local keys = {}
+      table.insert(keys, keymap.backspace(ctx.cursor_line:sub(completion_item.textEdit.range.start.character + 1, ctx.cursor.col - 1)))
+      table.insert(keys, keymap.delete(ctx.cursor_line:sub(ctx.cursor.col, completion_item.textEdit.range['end'].character)))
+      table.insert(keys, new_text)
+      feedkeys.call(table.concat(keys, ''), 'in')
+    end
+  end)
   -- Close menus.
   self.view:close()
   feedkeys.call('', 'n', function()
