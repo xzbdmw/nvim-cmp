@@ -84,6 +84,12 @@ keymap.backspace = function(count)
   if count <= 0 then
     return ''
   end
+  if require('config.utils').if_multicursor() then
+    local insert_mode = require('multicursors.insert_mode')
+    for _ = 1, count do
+      insert_mode.delete_char_except_main()
+    end
+  end
   local keys = {}
   table.insert(keys, keymap.t(string.rep('<BS>', count)))
   return table.concat(keys, '')

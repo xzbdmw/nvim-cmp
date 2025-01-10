@@ -329,6 +329,16 @@ custom_entries_view.get_selected_index = function(self)
   end
 end
 
+custom_entries_view.select_cur_item = function(self, option)
+  if self:visible() then
+    local cursor = vim.api.nvim_win_get_cursor(self.entries_win.win)[1]
+    self:_select(cursor, {
+      behavior = option.behavior or types.cmp.SelectBehavior.Insert,
+      active = true,
+    })
+  end
+end
+
 custom_entries_view.select_next_item = function(self, option)
   if self:visible() then
     local cursor = self:get_selected_index()
