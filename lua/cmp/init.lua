@@ -33,9 +33,18 @@ cmp.config.mapping = require('cmp.config.mapping')
 cmp.config.window = require('cmp.config.window')
 
 ---Sync asynchronous process.
-cmp.sync = function(callback)
+cmp.Sync = function(callback)
   return function(...)
     cmp.core.filter:sync(1000)
+    if callback then
+      return callback(...)
+    end
+  end
+end
+
+---Sync asynchronous process.
+cmp.sync = function(callback)
+  return function(...)
     if callback then
       return callback(...)
     end
@@ -71,7 +80,7 @@ end
 
 ---Invoke completion manually
 ---@param option cmp.CompleteParams
-cmp.complete = cmp.sync(function(option)
+cmp.complete = cmp.Sync(function(option)
   option = option or {}
   config.set_onetime(option.config)
   cmp.core:complete(cmp.core:get_context({ reason = option.reason or cmp.ContextReason.Manual }))
