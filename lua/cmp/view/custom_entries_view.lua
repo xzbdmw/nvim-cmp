@@ -57,6 +57,7 @@ custom_entries_view.new = function(ghost_text_view)
 
   vim.api.nvim_set_decoration_provider(custom_entries_view.ns, {
     on_win = function(_, win, buf, top, bot)
+      local cursor_row = vim.api.nvim_win_get_cursor(win)[1]
       if win ~= self.entries_win.win or buf ~= self.entries_win:get_buffer() then
         return
       end
@@ -96,12 +97,19 @@ custom_entries_view.new = function(ghost_text_view)
 
             o = o + v[field].bytes + (self.column_width[field] - v[field].width) + 1
           end
-
           for _, m in ipairs(e:get_view_matches(v.abbr.text) or {}) do
+            local hl_group
+            if i + 1 == cursor_row and #self.entries >= 2 then
+              -- no underline
+              hl_group = m.fuzzy and 'CmpItemAbbrMatchFuzzyCursorLine' or 'CmpItemAbbrMatchCursorLine'
+            else
+              -- no combine
+              hl_group = m.fuzzy and 'CmpItemAbbrMatchFuzzy' or 'CmpItemAbbrMatch'
+            end
             vim.api.nvim_buf_set_extmark(buf, custom_entries_view.ns, i, a + m.word_match_start - 1, {
               end_line = i,
               end_col = a + m.word_match_end,
-              hl_group = m.fuzzy and 'CmpItemAbbrMatchFuzzy' or 'CmpItemAbbrMatch',
+              hl_group = hl_group,
               hl_mode = 'combine',
               ephemeral = true,
             })
@@ -222,7 +230,11 @@ custom_entries_view.open = function(self, offset, entries)
 
   -- Apply window options (that might be changed) on the custom completion menu.
   self.entries_win:option('winblend', completion.winblend)
-  self.entries_win:option('winhighlight', completion.winhighlight)
+  if #entries >= 2 then
+    self.entries_win:option('winhighlight', completion.winhighlight)
+  else
+    self.entries_win:option('winhighlight', 'CursorLine:NoMyCmpCursorLine,Normal:MyNormalFloat')
+  end
   self.entries_win:option('scrolloff', completion.scrolloff)
   self.entries_win:open({
     relative = 'editor',
