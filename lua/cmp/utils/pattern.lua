@@ -10,6 +10,7 @@ pattern.regex = function(p)
 end
 
 pattern.offset = function(p, text)
+  text = text:gsub('\\V', '  ')
   local s, e = pattern.regex(p):match_str(text)
   if s then
     return s + 1, e + 1
