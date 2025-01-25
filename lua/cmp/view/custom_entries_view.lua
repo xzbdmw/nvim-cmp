@@ -99,12 +99,17 @@ custom_entries_view.new = function(ghost_text_view)
           end
           for _, m in ipairs(e:get_view_matches(v.abbr.text) or {}) do
             local hl_group
-            if i + 1 == cursor_row and #self.entries >= 2 then
-              -- no underline
-              hl_group = m.fuzzy and 'CmpItemAbbrMatchFuzzyCursorLine' or 'CmpItemAbbrMatchCursorLine'
+
+            if vim.api.nvim_get_mode().mode == 'c' or vim.bo.filetype == 'vim' then
+              hl_group = 'CmpItemAbbrMatchCmdLine'
             else
-              -- no combine
-              hl_group = m.fuzzy and 'CmpItemAbbrMatchFuzzy' or 'CmpItemAbbrMatch'
+              if i + 1 == cursor_row and #self.entries >= 2 then
+                -- no underline
+                hl_group = m.fuzzy and 'CmpItemAbbrMatchFuzzyCursorLine' or 'CmpItemAbbrMatchCursorLine'
+              else
+                -- no combine
+                hl_group = m.fuzzy and 'CmpItemAbbrMatchFuzzy' or 'CmpItemAbbrMatch'
+              end
             end
             vim.api.nvim_buf_set_extmark(buf, custom_entries_view.ns, i, a + m.word_match_start - 1, {
               end_line = i,
@@ -230,10 +235,14 @@ custom_entries_view.open = function(self, offset, entries)
 
   -- Apply window options (that might be changed) on the custom completion menu.
   self.entries_win:option('winblend', completion.winblend)
-  if #entries >= 2 then
-    self.entries_win:option('winhighlight', completion.winhighlight)
+  if vim.api.nvim_get_mode().mode == 'c' or vim.bo.filetype == 'vim' then
+    self.entries_win:option('winhighlight', 'CursorLine:CursorLine')
   else
-    self.entries_win:option('winhighlight', 'CursorLine:NoMyCmpCursorLine,Normal:MyNormalFloat')
+    if #entries >= 2 then
+      self.entries_win:option('winhighlight', completion.winhighlight)
+    else
+      self.entries_win:option('winhighlight', 'CursorLine:NoMyCmpCursorLine,Normal:MyNormalFloat')
+    end
   end
   self.entries_win:option('scrolloff', completion.scrolloff)
   self.entries_win:open({
