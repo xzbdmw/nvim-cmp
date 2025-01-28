@@ -127,6 +127,7 @@ window.open = function(self, style)
       opt.win_set_option(self.win, k, v)
     end
   end
+  opt.win_set_option(self.win, 'number', false)
   self:update()
 end
 

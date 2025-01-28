@@ -477,6 +477,7 @@ core.confirm = function(self, e, option, callback)
       if is_snippet then
         completion_item.textEdit.newText = ''
       end
+      _G.no_animation(_G.CI)
       vim.lsp.util.apply_text_edits({ completion_item.textEdit }, ctx.bufnr, 'utf-8')
 
       local texts = vim.split(completion_item.textEdit.newText, '\n')
