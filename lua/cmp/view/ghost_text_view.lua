@@ -43,7 +43,7 @@ ghost_text_view.new = function()
       end
 
       local c = config.get().experimental.ghost_text
-      if not c then
+      if not c or vim.b.rename then
         return
       end
 
