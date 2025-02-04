@@ -82,6 +82,7 @@ end
 ---  This function calculates the bytes of the entry to display calculating the number
 ---  of character differences instead of just byte difference.
 ghost_text_view.text_gen = function(self, line, cursor_col, entry)
+  local hl_group = (require('cmp.config.context').in_treesitter_capture('comment') or require('cmp.config.context').in_treesitter_capture('string')) and 'CmpGhostTextItalic' or 'CmpGhostText'
   entry = entry or self.entry
   if entry == nil then
     return { '' }
@@ -128,7 +129,7 @@ ghost_text_view.text_gen = function(self, line, cursor_col, entry)
 
     local virt_lines = {}
     for _, l in ipairs(static_text) do
-      table.insert(virt_lines, { { l, type(c) == 'table' and c.hl_group or 'Comment' } })
+      table.insert(virt_lines, { { l, hl_group } })
     end
     return virt_lines
   end
@@ -138,7 +139,7 @@ ghost_text_view.text_gen = function(self, line, cursor_col, entry)
   local virt_lines = {}
   if #text > 0 then
     for _, l in ipairs(vim.fn.split(text, '\n')) do
-      table.insert(virt_lines, { { l, type(c) == 'table' and c.hl_group or 'Comment' } })
+      table.insert(virt_lines, { { l, hl_group } })
     end
   end
   return virt_lines
