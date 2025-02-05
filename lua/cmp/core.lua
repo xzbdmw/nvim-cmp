@@ -453,7 +453,12 @@ core.confirm = function(self, e, option, callback)
     local diff_after = math.max(0, (completion_item.textEdit.range['end'].character + 1) - e.context.cursor.col)
     local new_text = completion_item.textEdit.newText
     completion_item.textEdit.range.start.line = ctx.cursor.line
-    completion_item.textEdit.range.start.character = (ctx.cursor.col - 1) - diff_before
+
+    if require('multicursor-nvim').numCursors() > 1 and vim.bo.filetype == 'go' then
+      completion_item.textEdit.range.start.character = e.offset - 1
+    else
+      completion_item.textEdit.range.start.character = (ctx.cursor.col - 1) - diff_before
+    end
     completion_item.textEdit.range['end'].line = ctx.cursor.line
     completion_item.textEdit.range['end'].character = (ctx.cursor.col - 1) + diff_after
     if api.is_insert_mode() then
@@ -473,7 +478,7 @@ core.confirm = function(self, e, option, callback)
           cursor_col0 = ctx.cursor.col - 1,
         })
       end
-      local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet
+      local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet or require('multicursor-nvim').numCursors() > 1
       if is_snippet then
         completion_item.textEdit.newText = ''
       end
