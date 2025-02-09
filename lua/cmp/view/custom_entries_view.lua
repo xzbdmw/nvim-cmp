@@ -491,7 +491,7 @@ custom_entries_view._select = function(self, cursor, option)
 
     -- If user specify 'noselect', select first entry
     local entry = self:get_selected_entry() or self:get_first_entry()
-    local should_move_up = self.ghost_text_view:has_multi_line(entry) and row > height + border_offset_row
+    local should_move_up = self.ghost_text_view:has_multi_line(entry) and row > height + border_offset_row and cursor == 1
     if should_move_up then
       self.bottom_up = true
       height = math.min(height, row - 1)
