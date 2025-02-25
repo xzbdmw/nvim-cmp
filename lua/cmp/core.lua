@@ -379,6 +379,23 @@ core.confirm = function(self, e, option, callback)
     table.insert(keys, keymap.undobreak())
     feedkeys.call(table.concat(keys, ''), 'in')
   end)
+  if not require('config.cmpformat').expand then
+    feedkeys.call(keymap.indentkeys(vim.bo.indentkeys), 'n')
+    feedkeys.call('', 'n', function()
+      e:execute(vim.schedule_wrap(function()
+        release()
+        self.event:emit('confirm_done', {
+          entry = e,
+          commit_character = option.commit_character,
+        })
+        if callback then
+          callback()
+        end
+      end))
+    end)
+    require('config.cmpformat').expand = true
+    return
+  end
   feedkeys.call('', 'n', function()
     -- Restore the line at the time of request.
     local ctx = context.new()
