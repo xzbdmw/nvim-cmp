@@ -30,6 +30,9 @@ end
 ---@type cmp.ComparatorFunction
 compare.exact = function(entry1, entry2)
   if entry1.exact ~= entry2.exact then
+    if entry1:get_kind() == 9 then
+      return nil
+    end
     return entry1.exact
   end
   return nil
